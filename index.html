@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>แปลงรูปภาพเป็น PNG ออนไลน์ (หลายไฟล์พร้อมกัน + ดาวน์โหลด ZIP)</title>
+
+  <!-- Google Fonts: Prompt สำหรับภาษาไทยที่ทันสมัยและอ่านง่าย -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- JSZip CDN สำหรับสร้างไฟล์บีบอัด .ZIP บนเบราว์เซอร์ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- ตั้งค่า Tailwind ให้ใช้ฟอนต์ Prompt เป็นค่าเริ่มต้น -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* ตารางหมากรุกสำหรับแสดงพื้นที่โปร่งใสของภาพ PNG */
+    .transparency-grid {
+      background-color: #ffffff;
+      background-image:
+        linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+        linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+        linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    }
+
+    /* ตารางหมากรุกโทนเข้มสำหรับหน้าต่างดูตัวอย่างภาพ */
+    .transparency-grid-dark {
+      background-color: #1e293b;
+      background-image:
+        linear-gradient(45deg, #334155 25%, transparent 25%),
+        linear-gradient(-45deg, #334155 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #334155 75%),
+        linear-gradient(-45deg, transparent 75%, #334155 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    }
+
+    /* แอนิเมชันแถบความคืบหน้าแบบเคลื่อนไหว */
+    @keyframes stripeMove {
+      0% { background-position: 0 0; }
+      100% { background-position: 28px 0; }
+    }
+    .progress-striped {
+      background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.2) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0.2) 75%,
+        transparent 75%,
+        transparent
+      );
+      background-size: 28px 28px;
+      animation: stripeMove 1s linear infinite;
+    }
+
+    /* ปรับแต่ง Scrollbar ให้สะอาดตา */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-800">
+
+  <!-- ==================== ส่วนหัวของแอปพลิเคชัน (Header) ==================== -->
+  <header class="bg-white border-b border-slate-200/80 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <!-- โลโก้และชื่อแอป -->
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">
+            แปลงรูปภาพเป็น <span class="text-indigo-600">.PNG</span> อัตโนมัติ
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500">
+            แปลงไฟล์ภาพหลายไฟล์พร้อมกัน และดาวน์โหลดรวมเป็นไฟล์ .ZIP ได้ในคลิกเดียว
+          </p>
+        </div>
+      </div>
+
+      <!-- ป้ายแจ้งเตือนความปลอดภัย (Privacy Badge) -->
+      <div class="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200/90 text-emerald-800 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium self-start md:self-auto">
+        <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <span>ประมวลผลบนเบราว์เซอร์ 100% ไฟล์ของคุณไม่ถูกส่งไปยังเซิร์ฟเวอร์ใดๆ</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== เนื้อหาหลัก (Main Content) ==================== -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+
+    <!-- Input ไฟล์แบบซ่อน (รองรับเลือกหลายไฟล์และทุกสกุลภาพ) -->
+    <input
+      type="file"
+      id="fileInput"
+      multiple
+      accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.svg,.avif,.ico,.tiff,.tif"
+      class="hidden"
+    />
+
+    <!-- ==================== 1. พื้นที่อัปโหลดแบบ Drag & Drop ==================== -->
+    <section
+      id="dropZone"
+      role="button"
+      tabindex="0"
+      aria-label="พื้นที่ลากและวางไฟล์รูปภาพ หรือคลิกเพื่อเลือกไฟล์"
+      class="group relative bg-white border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-3xl p-8 sm:p-12 text-center cursor-pointer transition-all duration-200 shadow-xs hover:shadow-md hover:bg-indigo-50/30 focus:outline-none focus:ring-4 focus:ring-indigo-500/20"
+    >
+      <div class="max-w-xl mx-auto flex flex-col items-center">
+        <!-- ไอคอนอัปโหลด -->
+        <div id="dropIconWrapper" class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4 transition-transform duration-200 group-hover:scale-105">
+          <svg class="w-8 h-8 sm:w-10 sm:h-10" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+        </div>
+
+        <h2 class="text-lg sm:text-2xl font-semibold text-slate-800 mb-2">
+          ลากไฟล์รูปภาพมาวางที่นี่ หรือ <span class="text-indigo-600 underline decoration-indigo-300 underline-offset-4">คลิกเพื่อเลือกไฟล์</span>
+        </h2>
+
+        <p class="text-sm text-slate-500 mb-5">
+          เลือกได้หลายไฟล์พร้อมกัน ระบบจะแปลงเป็น <strong class="font-semibold text-slate-700">.PNG</strong> คุณภาพสูงให้อัตโนมัติทันที
+        </p>
+
+        <!-- ป้ายแสดงนามสกุลไฟล์ที่รองรับ -->
+        <div class="flex flex-wrap items-center justify-center gap-1.5 text-xs font-medium text-slate-600">
+          <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70">JPG / JPEG</span>
+          <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70">WEBP</span>
+          <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70">GIF</span>
+          <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70">BMP</span>
+          <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70">SVG</span>
+          <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70">AVIF</span>
+          <span class="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/70">ICO</span>
+          <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100">+ อื่นๆ</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 2. ตัวเลือกเสริมแบบพับเก็บได้ (Optional Settings) ==================== -->
+    <section class="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+      <!-- หัวข้อสำหรับคลิกพับ/กาง -->
+      <button
+        type="button"
+        id="toggleSettingsBtn"
+        aria-expanded="false"
+        class="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50/80 transition-colors"
+      >
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-semibold text-slate-800 text-sm sm:text-base">ตั้งค่าเพิ่มเติม (ปรับขนาดภาพ / พื้นหลังโปร่งใส)</span>
+              <span id="settingsSummaryBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">
+                ขนาดต้นฉบับ 100% • พื้นหลังโปร่งใส
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">คลิกเพื่อกำหนดขนาดเอาต์พุตหรือเลือกสีพื้นหลังสำหรับภาพที่โปร่งใส</p>
+          </div>
+        </div>
+
+        <svg id="settingsChevron" class="w-5 h-5 text-slate-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      <!-- เนื้อหาการตั้งค่า -->
+      <div id="settingsPanel" class="hidden border-t border-slate-100 bg-slate-50/60 px-5 py-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- ตั้งค่าที่ 1: การปรับขนาดภาพ -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200/80 space-y-3">
+            <label class="block text-sm font-semibold text-slate-800">
+              1. ขนาดรูปภาพเอาต์พุต (Resize)
+            </label>
+
+            <div class="space-y-2.5">
+              <!-- ตัวเลือก: ขนาดต้นฉบับ -->
+              <label class="flex items-center gap-2.5 cursor-pointer text-sm text-slate-700">
+                <input type="radio" name="resizeMode" value="original" checked class="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
+                <span>คงขนาดต้นฉบับ (100%)</span>
+              </label>
+
+              <!-- ตัวเลือก: ย่อตามเปอร์เซ็นต์ -->
+              <div class="space-y-2">
+                <label class="flex items-center gap-2.5 cursor-pointer text-sm text-slate-700">
+                  <input type="radio" name="resizeMode" value="percentage" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
+                  <span>ย่อ/ขยายตามเปอร์เซ็นต์ (%)</span>
+                </label>
+                <div id="percentageControls" class="hidden pl-6 flex items-center gap-3">
+                  <input
+                    type="range"
+                    id="scalePercentRange"
+                    min="10"
+                    max="200"
+                    step="5"
+                    value="75"
+                    class="flex-1 accent-indigo-600 cursor-pointer"
+                  />
+                  <div class="flex items-center gap-1">
+                    <input
+                      type="number"
+                      id="scalePercentInput"
+                      min="1"
+                      max="500"
+                      value="75"
+                      class="w-16 px-2 py-1 text-sm text-center border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                    />
+                    <span class="text-sm text-slate-500">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ตัวเลือก: กำหนดความกว้างสูงสุด -->
+              <div class="space-y-2">
+                <label class="flex items-center gap-2.5 cursor-pointer text-sm text-slate-700">
+                  <input type="radio" name="resizeMode" value="maxWidth" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
+                  <span>กำหนดความกว้างสูงสุด (Max Width)</span>
+                </label>
+                <div id="maxWidthControls" class="hidden pl-6 space-y-2">
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="number"
+                      id="maxWidthInput"
+                      min="16"
+                      max="16000"
+                      value="1920"
+                      placeholder="เช่น 1920"
+                      class="w-28 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                    />
+                    <span class="text-sm text-slate-500">พิกเซล (px) — รักษาสัดส่วนอัตโนมัติ</span>
+                  </div>
+                  <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                    <input type="checkbox" id="noUpscaleCheck" checked class="rounded text-indigo-600 focus:ring-indigo-500" />
+                    <span>ไม่ขยายภาพที่เล็กกว่าความกว้างนี้</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ตั้งค่าที่ 2: พื้นหลังสำหรับภาพโปร่งใส -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200/80 space-y-3">
+            <label class="block text-sm font-semibold text-slate-800">
+              2. พื้นหลังสำหรับภาพโปร่งใส (Transparency)
+            </label>
+
+            <div class="space-y-2.5">
+              <!-- ตัวเลือก: โปร่งใสตามต้นฉบับ -->
+              <label class="flex items-center gap-2.5 cursor-pointer text-sm text-slate-700">
+                <input type="radio" name="bgMode" value="transparent" checked class="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
+                <span>โปร่งใสตามต้นฉบับ (Transparent PNG)</span>
+              </label>
+
+              <!-- ตัวเลือก: เติมสีพื้นหลัง -->
+              <div class="space-y-2">
+                <label class="flex items-center gap-2.5 cursor-pointer text-sm text-slate-700">
+                  <input type="radio" name="bgMode" value="solid" class="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
+                  <span>เติมสีพื้นหลังทึบ (Solid Color)</span>
+                </label>
+
+                <div id="bgColorControls" class="hidden pl-6 flex flex-wrap items-center gap-2.5 pt-1">
+                  <input
+                    type="color"
+                    id="bgColorPicker"
+                    value="#ffffff"
+                    class="w-9 h-9 p-0.5 rounded-lg border border-slate-300 cursor-pointer bg-white"
+                    title="เลือกสีพื้นหลัง"
+                  />
+                  <input
+                    type="text"
+                    id="bgColorHex"
+                    value="#FFFFFF"
+                    maxlength="7"
+                    class="w-24 px-2.5 py-1.5 text-xs font-mono uppercase border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                  />
+                  <!-- ปุ่มเลือกสีด่วน -->
+                  <div class="flex items-center gap-1.5">
+                    <button type="button" data-preset-color="#FFFFFF" class="w-6 h-6 rounded-full bg-white border border-slate-300 shadow-2xs hover:scale-110 transition-transform" title="สีขาว"></button>
+                    <button type="button" data-preset-color="#000000" class="w-6 h-6 rounded-full bg-black border border-slate-300 shadow-2xs hover:scale-110 transition-transform" title="สีดำ"></button>
+                    <button type="button" data-preset-color="#F1F5F9" class="w-6 h-6 rounded-full bg-slate-100 border border-slate-300 shadow-2xs hover:scale-110 transition-transform" title="สีเทาอ่อน"></button>
+                    <button type="button" data-preset-color="#EEF2FF" class="w-6 h-6 rounded-full bg-indigo-50 border border-indigo-200 shadow-2xs hover:scale-110 transition-transform" title="สีฟ้าอ่อน"></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- แถบปุ่มใช้การตั้งค่า / แปลงใหม่ทั้งหมด -->
+        <div class="mt-4 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p id="settingsDirtyNotice" class="text-xs sm:text-sm text-slate-500">
+            การตั้งค่านี้จะถูกนำไปใช้กับรูปภาพใหม่ที่เพิ่มเข้ามาทันที
+          </p>
+
+          <button
+            type="button"
+            id="reconvertAllBtn"
+            disabled
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-xs self-start sm:self-auto"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>แปลงใหม่ทั้งหมดตามการตั้งค่านี้</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 3. แผงควบคุมหลัก สรุปผล และความคืบหน้า (แสดงเมื่อมีไฟล์) ==================== -->
+    <section id="workspaceSection" class="hidden space-y-5">
+
+      <!-- การ์ดสรุปสถานะและปุ่ม Action หลัก -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5">
+        <!-- แถวบน: ข้อมูลสรุป & ปุ่มจัดการ -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <!-- สถิติสรุปจำนวนไฟล์และขนาด -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-6">
+            <div class="bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+              <div class="text-xs text-slate-500">จำนวนรูปภาพ</div>
+              <div class="text-lg sm:text-xl font-bold text-slate-800 mt-0.5">
+                <span id="statCompletedCount">0</span><span class="text-sm font-normal text-slate-400"> / <span id="statTotalCount">0</span> ไฟล์</span>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+              <div class="text-xs text-slate-500">ขนาดไฟล์ต้นฉบับรวม</div>
+              <div id="statOriginalSize" class="text-lg sm:text-xl font-bold text-slate-700 mt-0.5">0 KB</div>
+            </div>
+
+            <div class="col-span-2 sm:col-span-1 bg-indigo-50/70 px-4 py-3 rounded-xl border border-indigo-100">
+              <div class="text-xs text-indigo-600 font-medium">ขนาดไฟล์ PNG รวม</div>
+              <div class="flex items-baseline gap-2 mt-0.5">
+                <span id="statConvertedSize" class="text-lg sm:text-xl font-bold text-indigo-700">0 KB</span>
+                <span id="statSizeDelta" class="text-xs font-medium text-slate-500"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ปุ่มควบคุมหลัก (เพิ่มรูปภาพ / ล้างรายการ / ดาวน์โหลด ZIP) -->
+          <div class="flex flex-wrap items-center gap-2.5">
+            <!-- ปุ่มเพิ่มรูปภาพ -->
+            <button
+              type="button"
+              id="addMoreBtn"
+              class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
+            >
+              <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>เพิ่มรูปภาพ</span>
+            </button>
+
+            <!-- ปุ่มล้างรายการทั้งหมด -->
+            <button
+              type="button"
+              id="clearAllBtn"
+              class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 transition-all cursor-pointer"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>ล้างรายการทั้งหมด</span>
+            </button>
+
+            <!-- ปุ่มหลักขนาดใหญ่: ดาวน์โหลดทั้งหมดเป็นไฟล์ ZIP -->
+            <button
+              type="button"
+              id="downloadZipBtn"
+              disabled
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl text-sm sm:text-base font-semibold bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.99] disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed shadow-md shadow-indigo-200/80 transition-all cursor-pointer"
+            >
+              <svg id="zipBtnIcon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span id="zipBtnText">ดาวน์โหลดทั้งหมดเป็นไฟล์ ZIP</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- แถบแสดงความคืบหน้า (Progress Bar) -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs sm:text-sm">
+            <span id="progressLabel" class="font-medium text-slate-600">พร้อมแปลงไฟล์</span>
+            <span id="progressPercentText" class="font-semibold text-indigo-600">0%</span>
+          </div>
+          <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+            <div
+              id="progressBarFill"
+              class="h-full bg-indigo-600 rounded-full transition-all duration-300"
+              style="width: 0%"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 4. รายการแสดงผลและจัดการแต่ละไฟล์ ==================== -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between px-1">
+          <h3 class="text-base font-semibold text-slate-800">
+            รายการไฟล์รูปภาพ (<span id="listHeaderCount">0</span>)
+          </h3>
+          <span class="text-xs text-slate-500">คลิกที่รูปตัวอย่างเพื่อขยายดูความคมชัดและพื้นหลัง</span>
+        </div>
+
+        <!-- คอนเทนเนอร์รายการไฟล์ -->
+        <div id="fileListContainer" class="grid grid-cols-1 gap-3">
+          <!-- การ์ดรายการไฟล์แต่ละรายการจะถูกสร้างด้วย JavaScript -->
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ==================== ส่วนท้ายของเว็บ (Footer) ==================== -->
+  <footer class="border-t border-slate-200/80 bg-white py-5 mt-12">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <p>เครื่องมือแปลงรูปภาพเป็น .PNG ออนไลน์ — ทำงานด้วย HTML5 Canvas และ JSZip</p>
+      <p>ปลอดภัย 100% ไม่มีการอัปโหลดรูปภาพขึ้นเซิร์ฟเวอร์</p>
+    </div>
+  </footer>
+
+  <!-- ==================== หน้าต่างดูตัวอย่างภาพขนาดใหญ่ (Preview Modal) ==================== -->
+  <div id="previewModal" class="fixed inset-0 z-50 hidden bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+      <!-- ส่วนหัว Modal -->
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <h4 id="previewModalTitle" class="font-semibold text-slate-800 text-sm sm:text-base truncate">ตัวอย่างภาพ PNG</h4>
+          <p id="previewModalMeta" class="text-xs text-slate-500"></p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <!-- ปุ่มสลับพื้นหลังดูความโปร่งใส -->
+          <button
+            type="button"
+            id="togglePreviewBgBtn"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+          >
+            สลับพื้นหลัง: ตารางโปร่งใส
+          </button>
+          <button
+            type="button"
+            id="closePreviewModalBtn"
+            class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            aria-label="ปิดหน้าต่างตัวอย่าง"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- พื้นที่แสดงรูปภาพ -->
+      <div id="previewImageCanvasArea" class="flex-1 overflow-auto p-6 flex items-center justify-center transparency-grid min-h-[260px]">
+        <img id="previewModalImg" src="" alt="ตัวอย่างภาพ PNG" class="max-w-full max-h-[65vh] object-contain rounded-lg shadow-sm" />
+      </div>
+
+      <!-- ส่วนท้าย Modal -->
+      <div class="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          id="previewModalDownloadBtn"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>ดาวน์โหลด PNG นี้</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== หน้าต่างยืนยันการล้างรายการ (Custom Confirm Modal) ==================== -->
+  <div id="confirmClearModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+      <div class="flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div>
+          <h4 class="text-base font-bold text-slate-800">ยืนยันการล้างรายการทั้งหมด?</h4>
+          <p class="text-sm text-slate-600 mt-1">
+            รูปภาพที่อัปโหลดและไฟล์ PNG ที่แปลงแล้วทั้งหมดในรายการจะถูกลบออก คุณสามารถเพิ่มไฟล์ใหม่ได้ทุกเมื่อ
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2.5 pt-2">
+        <button
+          type="button"
+          id="cancelClearBtn"
+          class="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+        >
+          ยกเลิก
+        </button>
+        <button
+          type="button"
+          id="confirmClearBtn"
+          class="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+        >
+          ล้างรายการทั้งหมด
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== กล่องแจ้งเตือน (Toast Container) ==================== -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- ==================== สคริปต์การทำงานทั้งหมดของแอปพลิเคชัน ==================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      // ------------------------------------------------------------------
+      // 1. สถานะของแอปพลิเคชัน (Application State)
+      // ------------------------------------------------------------------
+      const state = {
+        items: [], // รายการไฟล์ทั้งหมด: { id, file, originalName, baseName, originalExt, outputName, originalSize, convertedBlob, convertedSize, previewUrl, origWidth, origHeight, outWidth, outHeight, status, errorMsg }
+        isConverting: false,
+        isZipping: false,
+        settingsDirty: false,
+        previewItemId: null,
+        previewBgTheme: 'grid-light', // 'grid-light' | 'grid-dark' | 'white'
+      };
+
+      // การตั้งค่าปัจจุบัน
+      const settings = {
+        resizeMode: 'original', // 'original' | 'percentage' | 'maxWidth'
+        scalePercent: 75,
+        maxWidth: 1920,
+        noUpscale: true,
+        bgMode: 'transparent', // 'transparent' | 'solid'
+        bgColor: '#FFFFFF',
+      };
+
+      // ------------------------------------------------------------------
+      // 2. อ้างอิง DOM Elements
+      // ------------------------------------------------------------------
+      const dom = {
+        fileInput: document.getElementById('fileInput'),
+        dropZone: document.getElementById('dropZone'),
+        dropIconWrapper: document.getElementById('dropIconWrapper'),
+
+        // Settings
+        toggleSettingsBtn: document.getElementById('toggleSettingsBtn'),
+        settingsChevron: document.getElementById('settingsChevron'),
+        settingsPanel: document.getElementById('settingsPanel'),
+        settingsSummaryBadge: document.getElementById('settingsSummaryBadge'),
+        settingsDirtyNotice: document.getElementById('settingsDirtyNotice'),
+        reconvertAllBtn: document.getElementById('reconvertAllBtn'),
+        resizeModeRadios: document.querySelectorAll('input[name="resizeMode"]'),
+        percentageControls: document.getElementById('percentageControls'),
+        scalePercentRange: document.getElementById('scalePercentRange'),
+        scalePercentInput: document.getElementById('scalePercentInput'),
+        maxWidthControls: document.getElementById('maxWidthControls'),
+        maxWidthInput: document.getElementById('maxWidthInput'),
+        noUpscaleCheck: document.getElementById('noUpscaleCheck'),
+        bgModeRadios: document.querySelectorAll('input[name="bgMode"]'),
+        bgColorControls: document.getElementById('bgColorControls'),
+        bgColorPicker: document.getElementById('bgColorPicker'),
+        bgColorHex: document.getElementById('bgColorHex'),
+        presetColorBtns: document.querySelectorAll('[data-preset-color]'),
+
+        // Workspace & Stats
+        workspaceSection: document.getElementById('workspaceSection'),
+        statCompletedCount: document.getElementById('statCompletedCount'),
+        statTotalCount: document.getElementById('statTotalCount'),
+        statOriginalSize: document.getElementById('statOriginalSize'),
+        statConvertedSize: document.getElementById('statConvertedSize'),
+        statSizeDelta: document.getElementById('statSizeDelta'),
+        progressLabel: document.getElementById('progressLabel'),
+        progressPercentText: document.getElementById('progressPercentText'),
+        progressBarFill: document.getElementById('progressBarFill'),
+
+        // Action Buttons & List
+        addMoreBtn: document.getElementById('addMoreBtn'),
+        clearAllBtn: document.getElementById('clearAllBtn'),
+        downloadZipBtn: document.getElementById('downloadZipBtn'),
+        zipBtnIcon: document.getElementById('zipBtnIcon'),
+        zipBtnText: document.getElementById('zipBtnText'),
+        listHeaderCount: document.getElementById('listHeaderCount'),
+        fileListContainer: document.getElementById('fileListContainer'),
+
+        // Preview Modal
+        previewModal: document.getElementById('previewModal'),
+        previewModalTitle: document.getElementById('previewModalTitle'),
+        previewModalMeta: document.getElementById('previewModalMeta'),
+        previewImageCanvasArea: document.getElementById('previewImageCanvasArea'),
+        previewModalImg: document.getElementById('previewModalImg'),
+        togglePreviewBgBtn: document.getElementById('togglePreviewBgBtn'),
+        closePreviewModalBtn: document.getElementById('closePreviewModalBtn'),
+        previewModalDownloadBtn: document.getElementById('previewModalDownloadBtn'),
+
+        // Confirm Clear Modal
+        confirmClearModal: document.getElementById('confirmClearModal'),
+        cancelClearBtn: document.getElementById('cancelClearBtn'),
+        confirmClearBtn: document.getElementById('confirmClearBtn'),
+
+        // Toast
+        toastContainer: document.getElementById('toastContainer'),
+      };
+
+      // ------------------------------------------------------------------
+      // 3. ฟังก์ชันอรรถประโยชน์ (Utility Functions)
+      // ------------------------------------------------------------------
+
+      /**
+       * สร้างรหัสประจำตัวแบบสุ่มสำหรับแต่ละรายการ
+       */
+      function generateId() {
+        return 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+      }
+
+      /**
+       * แปลงขนาดไฟล์จาก Bytes เป็นหน่วยที่อ่านง่าย (B, KB, MB, GB)
+       */
+      function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 2)) + ' ' + sizes[i];
+      }
+
+      /**
+       * แยกชื่อไฟล์หลัก (ไม่มีนามสกุล) และนามสกุลเดิม
+       */
+      function parseFileName(fileName) {
+        const lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex <= 0) {
+          return { baseName: fileName, ext: 'IMAGE' };
+        }
+        return {
+          baseName: fileName.substring(0, lastDotIndex),
+          ext: fileName.substring(lastDotIndex + 1).toUpperCase(),
+        };
+      }
+
+      /**
+       * จัดการชื่อไฟล์ซ้ำอัตโนมัติในรายการ เช่น photo.png, photo (1).png, photo (2).png
+       * เพื่อป้องกันไฟล์ทับกันเมื่อดาวน์โหลดเป็น ZIP
+       */
+      function recomputeUniqueOutputNames() {
+        const usedCounts = new Map();
+
+        state.items.forEach((item) => {
+          // ทำความสะอาดอักขระต้องห้ามในชื่อไฟล์
+          const cleanBase = item.baseName.replace(/[\\/:*?"<>|]/g, '_').trim() || 'image';
+          const lowerKey = cleanBase.toLowerCase();
+
+          if (!usedCounts.has(lowerKey)) {
+            usedCounts.set(lowerKey, 1);
+            item.outputName = `${cleanBase}.png`;
+          } else {
+            const count = usedCounts.get(lowerKey);
+            usedCounts.set(lowerKey, count + 1);
+            item.outputName = `${cleanBase} (${count}).png`;
+          }
+        });
+      }
+
+      /**
+       * แสดงข้อความแจ้งเตือนมุมขวาล่าง (แทนการใช้ alert())
+       */
+      function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        const colors = {
+          success: 'bg-emerald-600 text-white border-emerald-500',
+          error: 'bg-rose-600 text-white border-rose-500',
+          warning: 'bg-amber-600 text-white border-amber-500',
+          info: 'bg-slate-800 text-white border-slate-700',
+        };
+
+        toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+        toast.innerHTML = `<span class="flex-1">${escapeHtml(message)}</span>`;
+
+        dom.toastContainer.appendChild(toast);
+
+        // เริ่มแอนิเมชันแสดงผล
+        requestAnimationFrame(() => {
+          toast.classList.remove('translate-y-2', 'opacity-0');
+        });
+
+        // ซ่อนอัตโนมัติหลัง 3.5 วินาที
+        setTimeout(() => {
+          toast.classList.add('translate-y-2', 'opacity-0');
+          setTimeout(() => toast.remove(), 300);
+        }, 3500);
+      }
+
+      /**
+       * ป้องกัน XSS เมื่อแทรกข้อความชื่อไฟล์ลงใน HTML
+       */
+      function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      /**
+       * สั่งดาวน์โหลด Blob เป็นไฟล์ลงเครื่องผู้ใช้
+       */
+      function triggerBlobDownload(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+
+      // ------------------------------------------------------------------
+      // 4. ระบบโหลดรูปภาพและแปลงเป็น .PNG ด้วย HTML5 Canvas
+      // ------------------------------------------------------------------
+
+      /**
+       * โหลดไฟล์ภาพเข้าสู่ HTMLImageElement อย่างปลอดภัย (รองรับ SVG และภาพทั่วไป)
+       */
+      function loadImageFromFile(file) {
+        return new Promise((resolve, reject) => {
+          const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+
+          if (isSvg) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const img = new Image();
+              img.onload = () => resolve(img);
+              img.onerror = () => reject(new Error('ไม่สามารถอ่านไฟล์ SVG นี้ได้'));
+              img.src = reader.result;
+            };
+            reader.onerror = () => reject(new Error('เกิดข้อผิดพลาดในการอ่านไฟล์ SVG'));
+            reader.readAsDataURL(file);
+            return;
+          }
+
+          const objectUrl = URL.createObjectURL(file);
+          const img = new Image();
+
+          img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(img);
+          };
+
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('รูปแบบไฟล์ไม่รองรับหรือไฟล์เสียหาย'));
+          };
+
+          img.src = objectUrl;
+        });
+      }
+
+      /**
+       * คำนวณความกว้างและความสูงปลายทางตามการตั้งค่า Resize
+       */
+      function calculateTargetDimensions(origW, origH) {
+        // กรณีไฟล์ SVG ที่ไม่มีระบุขนาดในไฟล์ ให้ใช้ค่าเริ่มต้น 1024px
+        const safeW = origW > 0 ? origW : 1024;
+        const safeH = origH > 0 ? origH : 1024;
+
+        if (settings.resizeMode === 'percentage') {
+          const ratio = Math.max(1, Math.min(500, Number(settings.scalePercent) || 100)) / 100;
+          return {
+            width: Math.max(1, Math.round(safeW * ratio)),
+            height: Math.max(1, Math.round(safeH * ratio)),
+          };
+        }
+
+        if (settings.resizeMode === 'maxWidth') {
+          const targetMaxW = Math.max(16, Number(settings.maxWidth) || 1920);
+          if (settings.noUpscale && safeW <= targetMaxW) {
+            return { width: safeW, height: safeH };
+          }
+          const scale = targetMaxW / safeW;
+          return {
+            width: Math.max(1, Math.round(safeW * scale)),
+            height: Math.max(1, Math.round(safeH * scale)),
+          };
+        }
+
+        // ค่าเริ่มต้น: คงขนาดต้นฉบับ 100%
+        return { width: safeW, height: safeH };
+      }
+
+      /**
+       * แปลงรายการภาพ 1 รายการเป็นไฟล์ .PNG ผ่าน HTML5 Canvas
+       */
+      async function convertSingleItemToPng(item) {
+        item.status = 'processing';
+        item.errorMsg = '';
+        updateItemCardUI(item);
+
+        try {
+          const img = await loadImageFromFile(item.file);
+          const origWidth = img.naturalWidth || img.width || 1024;
+          const origHeight = img.naturalHeight || img.height || 1024;
+
+          const { width: outWidth, height: outHeight } = calculateTargetDimensions(origWidth, origHeight);
+
+          // สร้าง HTML5 Canvas สำหรับวาดและแปลงเป็น PNG
+          const canvas = document.createElement('canvas');
+          canvas.width = outWidth;
+          canvas.height = outHeight;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            throw new Error('เบราว์เซอร์ไม่รองรับ HTML5 Canvas 2D');
+          }
+
+          // ตั้งค่าคุณภาพการย่อ/ขยายภาพให้คมชัดสูงสุด
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+
+          // จัดการพื้นหลัง (โปร่งใส หรือ เติมสีทึบ)
+          if (settings.bgMode === 'solid') {
+            ctx.fillStyle = settings.bgColor || '#FFFFFF';
+            ctx.fillRect(0, 0, outWidth, outHeight);
+          } else {
+            ctx.clearRect(0, 0, outWidth, outHeight);
+          }
+
+          // วาดรูปภาพลงบน Canvas
+          ctx.drawImage(img, 0, 0, outWidth, outHeight);
+
+          // ส่งออกเป็น Blob รูปแบบ image/png
+          const pngBlob = await new Promise((resolve, reject) => {
+            canvas.toBlob(
+              (blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('ไม่สามารถสร้างข้อมูลไฟล์ PNG ได้'));
+              },
+              'image/png'
+            );
+          });
+
+          // ล้าง URL ตัวอย่างเก่าออก (ถ้ามี) เพื่อคืนหน่วยความจำ
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+
+          item.origWidth = origWidth;
+          item.origHeight = origHeight;
+          item.outWidth = outWidth;
+          item.outHeight = outHeight;
+          item.convertedBlob = pngBlob;
+          item.convertedSize = pngBlob.size;
+          item.previewUrl = URL.createObjectURL(pngBlob);
+          item.status = 'done';
+        } catch (err) {
+          console.error('Conversion error:', item.originalName, err);
+          item.status = 'error';
+          item.errorMsg = err.message || 'แปลงไฟล์ไม่สำเร็จ';
+        }
+
+        updateItemCardUI(item);
+        updateSummaryAndProgress();
+      }
+
+      /**
+       * ประมวลผลคิวรายการที่ยังรอแปลง (status === 'pending') แบบควบคุมจำนวนงานพร้อมกัน
+       */
+      async function processPendingQueue() {
+        if (state.isConverting) return;
+
+        const pendingItems = state.items.filter((it) => it.status === 'pending');
+        if (pendingItems.length === 0) return;
+
+        state.isConverting = true;
+        updateSummaryAndProgress();
+
+        // ประมวลผลทีละ 3 ไฟล์พร้อมกัน เพื่อความรวดเร็วและไม่ค้างหน้าจอ
+        const concurrency = 3;
+        let currentIndex = 0;
+
+        async function worker() {
+          while (currentIndex < state.items.length) {
+            const item = state.items[currentIndex++];
+            if (item && item.status === 'pending') {
+              await convertSingleItemToPng(item);
+            }
+          }
+        }
+
+        const workers = [];
+        for (let i = 0; i < Math.min(concurrency, pendingItems.length); i++) {
+          workers.push(worker());
+        }
+
+        await Promise.all(workers);
+
+        state.isConverting = false;
+        state.settingsDirty = false;
+        updateSettingsBadgeAndNotice();
+        updateSummaryAndProgress();
+      }
+
+      // ------------------------------------------------------------------
+      // 5. การนำเข้าไฟล์ (Add Files) และการจัดการรายการ
+      // ------------------------------------------------------------------
+
+      /**
+       * รับ FileList หรือ Array ของ File แล้วเพิ่มเข้าสู่ระบบ
+       */
+      function handleIncomingFiles(fileList) {
+        if (!fileList || fileList.length === 0) return;
+
+        const validFiles = [];
+        let skippedCount = 0;
+
+        // นามสกุลภาพที่ยอมรับแม้บางเบราว์เซอร์ไม่ส่ง MIME type มา
+        const allowedExtRegex = /\.(jpe?g|png|webp|gif|bmp|svg|avif|ico|tiff?|heic|jfif)$/i;
+
+        Array.from(fileList).forEach((file) => {
+          if (file.type.startsWith('image/') || allowedExtRegex.test(file.name)) {
+            validFiles.push(file);
+          } else {
+            skippedCount++;
+          }
+        });
+
+        if (skippedCount > 0) {
+          showToast(`ข้ามไฟล์ที่ไม่ใช่รูปภาพจำนวน ${skippedCount} ไฟล์`, 'warning');
+        }
+
+        if (validFiles.length === 0) return;
+
+        // สร้างออบเจกต์รายการใหม่
+        validFiles.forEach((file) => {
+          const { baseName, ext } = parseFileName(file.name);
+          state.items.push({
+            id: generateId(),
+            file,
+            originalName: file.name,
+            baseName,
+            originalExt: ext,
+            outputName: `${baseName}.png`,
+            originalSize: file.size,
+            convertedBlob: null,
+            convertedSize: 0,
+            previewUrl: '',
+            origWidth: 0,
+            origHeight: 0,
+            outWidth: 0,
+            outHeight: 0,
+            status: 'pending',
+            errorMsg: '',
+          });
+        });
+
+        // คำนวณชื่อไฟล์ไม่ให้ซ้ำกันทั้งรายการ
+        recomputeUniqueOutputNames();
+
+        // แสดงพื้นที่ทำงานและเรนเดอร์รายการ
+        dom.workspaceSection.classList.remove('hidden');
+        renderFullFileList();
+        updateSummaryAndProgress();
+
+        // เริ่มแปลงเป็น PNG อัตโนมัติทันที
+        processPendingQueue();
+      }
+
+      /**
+       * ลบรายการรูปภาพ 1 รายการออกจากลิสต์
+       */
+      function removeItemById(id) {
+        const index = state.items.findIndex((it) => it.id === id);
+        if (index === -1) return;
+
+        const [removed] = state.items.splice(index, 1);
+        if (removed && removed.previewUrl) {
+          URL.revokeObjectURL(removed.previewUrl);
+        }
+
+        // คำนวณชื่อไฟล์ซ้ำใหม่หลังลบ
+        recomputeUniqueOutputNames();
+
+        if (state.items.length === 0) {
+          dom.workspaceSection.classList.add('hidden');
+        } else {
+          renderFullFileList();
+        }
+        updateSummaryAndProgress();
+      }
+
+      /**
+       * ล้างรายการทั้งหมด
+       */
+      function clearAllItems() {
+        state.items.forEach((item) => {
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+        });
+        state.items = [];
+        state.isConverting = false;
+        state.settingsDirty = false;
+        dom.fileInput.value = '';
+        dom.workspaceSection.classList.add('hidden');
+        dom.fileListContainer.innerHTML = '';
+        updateSettingsBadgeAndNotice();
+        updateSummaryAndProgress();
+        showToast('ล้างรายการรูปภาพทั้งหมดแล้ว', 'info');
+      }
+
+      /**
+       * แปลงไฟล์ทั้งหมดใหม่ตามการตั้งค่าล่าสุด
+       */
+      function reconvertAllItems() {
+        if (state.items.length === 0 || state.isConverting) return;
+
+        state.items.forEach((item) => {
+          item.status = 'pending';
+        });
+
+        renderFullFileList();
+        updateSummaryAndProgress();
+        processPendingQueue();
+      }
+
+      // ------------------------------------------------------------------
+      // 6. การอัปเดตหน้าจอ (UI Rendering)
+      // ------------------------------------------------------------------
+
+      /**
+       * สร้าง HTML ของการ์ดรายการไฟล์ 1 ใบ
+       */
+      function buildItemCardHTML(item) {
+        const isDone = item.status === 'done';
+        const isError = item.status === 'error';
+        const isProcessing = item.status === 'processing' || item.status === 'pending';
+
+        // ป้ายสถานะ
+        let statusBadgeHTML = '';
+        if (isProcessing) {
+          statusBadgeHTML = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/80">
+              <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              กำลังแปลง...
+            </span>`;
+        } else if (isDone) {
+          statusBadgeHTML = `
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              แปลงสำเร็จ
+            </span>`;
+        } else if (isError) {
+          statusBadgeHTML = `
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200/80" title="${escapeHtml(item.errorMsg)}">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              ผิดพลาด
+            </span>`;
+        }
+
+        // ข้อมูลมิติภาพและขนาดไฟล์
+        const dimensionText = isDone
+          ? `${item.outWidth} × ${item.outHeight} px` +
+            (item.outWidth !== item.origWidth || item.outHeight !== item.origHeight
+              ? ` <span class="text-slate-400">(เดิม ${item.origWidth}×${item.origHeight})</span>`
+              : '')
+          : isError
+          ? `<span class="text-rose-600">${escapeHtml(item.errorMsg)}</span>`
+          : 'กำลังอ่านขนาดภาพ...';
+
+        const sizeComparisonText = isDone
+          ? `<span class="text-slate-500">${formatBytes(item.originalSize)}</span>
+             <span class="text-slate-400 mx-1">→</span>
+             <span class="font-semibold text-indigo-700">${formatBytes(item.convertedSize)}</span>`
+          : `<span class="text-slate-500">${formatBytes(item.originalSize)}</span>`;
+
+        // ภาพตัวอย่างขนาดย่อ (Thumbnail)
+        const thumbnailHTML = isDone && item.previewUrl
+          ? `<button type="button" data-action="preview" data-id="${item.id}" class="group/thumb relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-slate-200 transparency-grid shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500" title="คลิกเพื่อดูภาพตัวอย่างขนาดใหญ่">
+               <img src="${item.previewUrl}" alt="${escapeHtml(item.outputName)}" class="w-full h-full object-contain transition-transform duration-200 group-hover/thumb:scale-105" />
+               <div class="absolute inset-0 bg-slate-900/0 group-hover/thumb:bg-slate-900/25 flex items-center justify-center transition-colors">
+                 <svg class="w-5 h-5 text-white opacity-0 group-hover/thumb:opacity-100 drop-shadow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                   <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                 </svg>
+               </div>
+             </button>`
+          : `<div class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+               <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+               </svg>
+             </div>`;
+
+        return `
+          <div id="card_${item.id}" class="bg-white border ${isError ? 'border-rose-200 bg-rose-50/20' : 'border-slate-200/90'} rounded-2xl p-3.5 sm:p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+            <!-- ด้านซ้าย: รูปตัวอย่าง + รายละเอียดไฟล์ -->
+            <div class="flex items-center gap-3.5 min-w-0 flex-1">
+              ${thumbnailHTML}
+
+              <div class="min-w-0 flex-1 space-y-1">
+                <!-- ชื่อไฟล์ใหม่ (.png) และป้ายนามสกุลเดิม -->
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-semibold text-slate-800 text-sm sm:text-base truncate max-w-full" title="${escapeHtml(item.outputName)}">
+                    ${escapeHtml(item.outputName)}
+                  </span>
+                  <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/80 uppercase shrink-0">
+                    ${escapeHtml(item.originalExt)} → PNG
+                  </span>
+                </div>
+
+                <!-- มิติภาพและขนาดไฟล์ -->
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                    ${dimensionText}
+                  </span>
+                  <span class="text-slate-300 hidden sm:inline">•</span>
+                  <span>${sizeComparisonText}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ด้านขวา: สถานะ + ปุ่มดาวน์โหลด PNG + ปุ่มลบ -->
+            <div class="flex items-center justify-between sm:justify-end gap-2.5 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+              ${statusBadgeHTML}
+
+              <div class="flex items-center gap-2">
+                <!-- ปุ่มดาวน์โหลดแยกทีละไฟล์ -->
+                <button
+                  type="button"
+                  data-action="download"
+                  data-id="${item.id}"
+                  ${!isDone ? 'disabled' : ''}
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>ดาวน์โหลด PNG</span>
+                </button>
+
+                <!-- ปุ่มลบรายการ -->
+                <button
+                  type="button"
+                  data-action="delete"
+                  data-id="${item.id}"
+                  class="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  title="ลบรายการนี้"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>ลบ</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      /**
+       * เรนเดอร์รายการไฟล์ทั้งหมดลงใน DOM
+       */
+      function renderFullFileList() {
+        dom.fileListContainer.innerHTML = state.items.map(buildItemCardHTML).join('');
+      }
+
+      /**
+       * อัปเดตเฉพาะการ์ดของรายการที่มีการเปลี่ยนแปลง (ประหยัดทรัพยากร)
+       */
+      function updateItemCardUI(item) {
+        const existingEl = document.getElementById(`card_${item.id}`);
+        if (existingEl) {
+          existingEl.outerHTML = buildItemCardHTML(item);
+        }
+      }
+
+      /**
+       * อัปเดตสถิติสรุป แถบ Progress Bar และสถานะปุ่มดาวน์โหลด ZIP
+       */
+      function updateSummaryAndProgress() {
+        const total = state.items.length;
+        const doneItems = state.items.filter((it) => it.status === 'done');
+        const errorItems = state.items.filter((it) => it.status === 'error');
+        const finishedCount = doneItems.length + errorItems.length;
+
+        const totalOrigBytes = state.items.reduce((acc, it) => acc + (it.originalSize || 0), 0);
+        const totalConvBytes = doneItems.reduce((acc, it) => acc + (it.convertedSize || 0), 0);
+
+        dom.statCompletedCount.textContent = doneItems.length;
+        dom.statTotalCount.textContent = total;
+        dom.listHeaderCount.textContent = total;
+        dom.statOriginalSize.textContent = formatBytes(totalOrigBytes);
+        dom.statConvertedSize.textContent = formatBytes(totalConvBytes);
+
+        // คำนวณส่วนต่างขนาดไฟล์รวม
+        if (doneItems.length > 0 && totalOrigBytes > 0) {
+          const diffPercent = Math.round(((totalConvBytes - totalOrigBytes) / totalOrigBytes) * 100);
+          if (diffPercent > 0) {
+            dom.statSizeDelta.textContent = `(+${diffPercent}%)`;
+            dom.statSizeDelta.className = 'text-xs font-medium text-slate-500';
+          } else if (diffPercent < 0) {
+            dom.statSizeDelta.textContent = `(${diffPercent}%)`;
+            dom.statSizeDelta.className = 'text-xs font-medium text-emerald-600';
+          } else {
+            dom.statSizeDelta.textContent = '(เท่าเดิม)';
+            dom.statSizeDelta.className = 'text-xs font-medium text-slate-500';
+          }
+        } else {
+          dom.statSizeDelta.textContent = '';
+        }
+
+        // อัปเดต Progress Bar
+        const percent = total > 0 ? Math.round((finishedCount / total) * 100) : 0;
+        dom.progressBarFill.style.width = `${percent}%`;
+        dom.progressPercentText.textContent = `${percent}%`;
+
+        if (total === 0) {
+          dom.progressLabel.textContent = 'ยังไม่มีไฟล์ในรายการ';
+          dom.progressBarFill.classList.remove('progress-striped', 'bg-emerald-500');
+          dom.progressBarFill.classList.add('bg-indigo-600');
+        } else if (finishedCount < total) {
+          dom.progressLabel.textContent = `กำลังแปลงไฟล์... (${finishedCount}/${total})`;
+          dom.progressBarFill.classList.add('progress-striped', 'bg-indigo-600');
+          dom.progressBarFill.classList.remove('bg-emerald-500');
+        } else {
+          dom.progressLabel.textContent =
+            errorItems.length > 0
+              ? `แปลงเสร็จสิ้น ${doneItems.length} ไฟล์ (ไม่สำเร็จ ${errorItems.length} ไฟล์)`
+              : `แปลงไฟล์เป็น .PNG เสร็จสมบูรณ์ทั้งหมด ${doneItems.length} ไฟล์`;
+          dom.progressBarFill.classList.remove('progress-striped', 'bg-indigo-600');
+          dom.progressBarFill.classList.add('bg-emerald-500');
+        }
+
+        // สถานะปุ่มดาวน์โหลด ZIP และปุ่มแปลงใหม่ทั้งหมด
+        const canDownloadZip = doneItems.length > 0 && !state.isZipping;
+        dom.downloadZipBtn.disabled = !canDownloadZip;
+        dom.reconvertAllBtn.disabled = total === 0 || state.isConverting;
+      }
+
+      /**
+       * อัปเดตป้ายสรุปการตั้งค่าและข้อความแจ้งเตือนเมื่อผู้ใช้แก้ไขตั้งค่า
+       */
+      function updateSettingsBadgeAndNotice() {
+        let sizeText = 'ขนาดต้นฉบับ 100%';
+        if (settings.resizeMode === 'percentage') {
+          sizeText = `ย่อ/ขยาย ${settings.scalePercent}%`;
+        } else if (settings.resizeMode === 'maxWidth') {
+          sizeText = `กว้างสูงสุด ${settings.maxWidth}px`;
+        }
+
+        const bgText =
+          settings.bgMode === 'solid'
+            ? `พื้นหลังสี ${settings.bgColor.toUpperCase()}`
+            : 'พื้นหลังโปร่งใส';
+
+        dom.settingsSummaryBadge.textContent = `${sizeText} • ${bgText}`;
+
+        if (state.settingsDirty && state.items.length > 0) {
+          dom.settingsDirtyNotice.innerHTML =
+            '<span class="text-amber-700 font-medium">มีการเปลี่ยนแปลงการตั้งค่า กดปุ่ม "แปลงใหม่ทั้งหมด" เพื่ออัปเดตไฟล์ในรายการ</span>';
+          dom.reconvertAllBtn.classList.add('ring-4', 'ring-indigo-500/30');
+        } else {
+          dom.settingsDirtyNotice.textContent =
+            'การตั้งค่านี้จะถูกนำไปใช้กับรูปภาพใหม่ที่เพิ่มเข้ามาทันที';
+          dom.reconvertAllBtn.classList.remove('ring-4', 'ring-indigo-500/30');
+        }
+      }
+
+      // ------------------------------------------------------------------
+      // 7. การสร้างและดาวน์โหลดไฟล์ .ZIP ด้วย JSZip
+      // ------------------------------------------------------------------
+
+      async function downloadAllAsZip() {
+        const doneItems = state.items.filter((it) => it.status === 'done' && it.convertedBlob);
+        if (doneItems.length === 0 || state.isZipping) return;
+
+        if (typeof JSZip === 'undefined') {
+          showToast('ไม่สามารถโหลดไลบรารี JSZip ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต', 'error');
+          return;
+        }
+
+        state.isZipping = true;
+        updateSummaryAndProgress();
+
+        const originalBtnText = dom.zipBtnText.textContent;
+        dom.zipBtnText.textContent = 'กำลังบีบอัดไฟล์ ZIP (0%)...';
+        dom.zipBtnIcon.classList.add('animate-spin');
+        dom.zipBtnIcon.innerHTML = `
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        `;
+
+        try {
+          const zip = new JSZip();
+
+          // เพิ่มไฟล์ PNG ที่แปลงเสร็จแล้วทั้งหมดลงใน ZIP
+          doneItems.forEach((item) => {
+            zip.file(item.outputName, item.convertedBlob);
+          });
+
+          // สร้างไฟล์ ZIP แบบ Blob พร้อมรายงานเปอร์เซ็นต์ความคืบหน้า
+          const zipBlob = await zip.generateAsync(
+            {
+              type: 'blob',
+              compression: 'DEFLATE',
+              compressionOptions: { level: 6 },
+            },
+            (metadata) => {
+              const pct = Math.round(metadata.percent);
+              dom.zipBtnText.textContent = `กำลังบีบอัดไฟล์ ZIP (${pct}%)...`;
+            }
+          );
+
+          triggerBlobDownload(zipBlob, 'converted_images_png.zip');
+          showToast(`ดาวน์โหลดไฟล์ converted_images_png.zip (${doneItems.length} ไฟล์) สำเร็จ!`, 'success');
+        } catch (err) {
+          console.error('ZIP creation error:', err);
+          showToast('เกิดข้อผิดพลาดระหว่างสร้างไฟล์ ZIP กรุณาลองใหม่อีกครั้ง', 'error');
+        } finally {
+          state.isZipping = false;
+          dom.zipBtnText.textContent = originalBtnText;
+          dom.zipBtnIcon.classList.remove('animate-spin');
+          dom.zipBtnIcon.innerHTML = `
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          `;
+          updateSummaryAndProgress();
+        }
+      }
+
+      // ------------------------------------------------------------------
+      // 8. หน้าต่างดูตัวอย่างภาพขนาดใหญ่ (Preview Modal)
+      // ------------------------------------------------------------------
+
+      function openPreviewModal(itemId) {
+        const item = state.items.find((it) => it.id === itemId);
+        if (!item || item.status !== 'done' || !item.previewUrl) return;
+
+        state.previewItemId = itemId;
+        dom.previewModalTitle.textContent = item.outputName;
+        dom.previewModalMeta.textContent = `${item.outWidth} × ${item.outHeight} px • ขนาด ${formatBytes(item.convertedSize)} (ต้นฉบับ ${item.originalExt} ${formatBytes(item.originalSize)})`;
+        dom.previewModalImg.src = item.previewUrl;
+
+        dom.previewModal.classList.remove('hidden');
+      }
+
+      function closePreviewModal() {
+        dom.previewModal.classList.add('hidden');
+        dom.previewModalImg.src = '';
+        state.previewItemId = null;
+      }
+
+      function cyclePreviewBackground() {
+        const area = dom.previewImageCanvasArea;
+        area.classList.remove('transparency-grid', 'transparency-grid-dark', 'bg-white');
+
+        if (state.previewBgTheme === 'grid-light') {
+          state.previewBgTheme = 'grid-dark';
+          area.classList.add('transparency-grid-dark');
+          dom.togglePreviewBgBtn.textContent = 'สลับพื้นหลัง: ตารางเข้ม';
+        } else if (state.previewBgTheme === 'grid-dark') {
+          state.previewBgTheme = 'white';
+          area.classList.add('bg-white');
+          dom.togglePreviewBgBtn.textContent = 'สลับพื้นหลัง: สีขาวล้วน';
+        } else {
+          state.previewBgTheme = 'grid-light';
+          area.classList.add('transparency-grid');
+          dom.togglePreviewBgBtn.textContent = 'สลับพื้นหลัง: ตารางโปร่งใส';
+        }
+      }
+
+      // ------------------------------------------------------------------
+      // 9. การผูก Event Listeners ทั้งหมด
+      // ------------------------------------------------------------------
+
+      // คลิกหรือกด Enter/Space ที่ Drop Zone เพื่อเปิดเลือกไฟล์
+      dom.dropZone.addEventListener('click', () => dom.fileInput.click());
+      dom.dropZone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          dom.fileInput.click();
+        }
+      });
+
+      // เมื่อเลือกไฟล์จาก File Dialog
+      dom.fileInput.addEventListener('change', (e) => {
+        handleIncomingFiles(e.target.files);
+        e.target.value = ''; // รีเซ็ตเพื่อให้เลือกไฟล์ชื่อเดิมซ้ำได้
+      });
+
+      // Drag & Drop Events บน Drop Zone และทั้งหน้าต่าง
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        dom.dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dom.dropZone.classList.add('border-indigo-600', 'bg-indigo-50/70', 'scale-[1.005]');
+          dom.dropIconWrapper.classList.add('bg-indigo-200', 'scale-110');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach((eventName) => {
+        dom.dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dom.dropZone.classList.remove('border-indigo-600', 'bg-indigo-50/70', 'scale-[1.005]');
+          dom.dropIconWrapper.classList.remove('bg-indigo-200', 'scale-110');
+        });
+      });
+
+      dom.dropZone.addEventListener('drop', (e) => {
+        if (e.dataTransfer && e.dataTransfer.files) {
+          handleIncomingFiles(e.dataTransfer.files);
+        }
+      });
+
+      // ป้องกันเบราว์เซอร์เปิดไฟล์รูปภาพทับหน้าเว็บหากลากวางพลาดขอบ Drop Zone
+      window.addEventListener('dragover', (e) => e.preventDefault());
+      window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (e.target !== dom.dropZone && !dom.dropZone.contains(e.target)) {
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleIncomingFiles(e.dataTransfer.files);
+          }
+        }
+      });
+
+      // พับ/กาง แผงตั้งค่าเพิ่มเติม
+      dom.toggleSettingsBtn.addEventListener('click', () => {
+        const isHidden = dom.settingsPanel.classList.toggle('hidden');
+        dom.toggleSettingsBtn.setAttribute('aria-expanded', String(!isHidden));
+        dom.settingsChevron.classList.toggle('rotate-180', !isHidden);
+      });
+
+      // เปลี่ยนโหมดปรับขนาดภาพ
+      dom.resizeModeRadios.forEach((radio) => {
+        radio.addEventListener('change', (e) => {
+          settings.resizeMode = e.target.value;
+          dom.percentageControls.classList.toggle('hidden', settings.resizeMode !== 'percentage');
+          dom.maxWidthControls.classList.toggle('hidden', settings.resizeMode !== 'maxWidth');
+          state.settingsDirty = true;
+          updateSettingsBadgeAndNotice();
+        });
+      });
+
+      // ซิงค์ Slider และ Input เปอร์เซ็นต์
+      dom.scalePercentRange.addEventListener('input', (e) => {
+        settings.scalePercent = Number(e.target.value);
+        dom.scalePercentInput.value = settings.scalePercent;
+        state.settingsDirty = true;
+        updateSettingsBadgeAndNotice();
+      });
+
+      dom.scalePercentInput.addEventListener('input', (e) => {
+        const val = Math.max(1, Math.min(500, Number(e.target.value) || 100));
+        settings.scalePercent = val;
+        dom.scalePercentRange.value = Math.min(200, Math.max(10, val));
+        state.settingsDirty = true;
+        updateSettingsBadgeAndNotice();
+      });
+
+      // ตั้งค่าความกว้างสูงสุด
+      dom.maxWidthInput.addEventListener('input', (e) => {
+        settings.maxWidth = Math.max(16, Number(e.target.value) || 1920);
+        state.settingsDirty = true;
+        updateSettingsBadgeAndNotice();
+      });
+
+      dom.noUpscaleCheck.addEventListener('change', (e) => {
+        settings.noUpscale = e.target.checked;
+        state.settingsDirty = true;
+        updateSettingsBadgeAndNotice();
+      });
+
+      // เปลี่ยนโหมดพื้นหลังภาพโปร่งใส
+      dom.bgModeRadios.forEach((radio) => {
+        radio.addEventListener('change', (e) => {
+          settings.bgMode = e.target.value;
+          dom.bgColorControls.classList.toggle('hidden', settings.bgMode !== 'solid');
+          state.settingsDirty = true;
+          updateSettingsBadgeAndNotice();
+        });
+      });
+
+      // ซิงค์ Color Picker และช่องกรอกรหัสสี Hex
+      dom.bgColorPicker.addEventListener('input', (e) => {
+        settings.bgColor = e.target.value.toUpperCase();
+        dom.bgColorHex.value = settings.bgColor;
+        state.settingsDirty = true;
+        updateSettingsBadgeAndNotice();
+      });
+
+      dom.bgColorHex.addEventListener('input', (e) => {
+        let hex = e.target.value.trim();
+        if (!hex.startsWith('#')) hex = '#' + hex;
+        if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+          settings.bgColor = hex.toUpperCase();
+          dom.bgColorPicker.value = settings.bgColor;
+          state.settingsDirty = true;
+          updateSettingsBadgeAndNotice();
+        }
+      });
+
+      dom.presetColorBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const color = btn.getAttribute('data-preset-color');
+          settings.bgColor = color;
+          dom.bgColorPicker.value = color;
+          dom.bgColorHex.value = color;
+          state.settingsDirty = true;
+          updateSettingsBadgeAndNotice();
+        });
+      });
+
+      // ปุ่มแปลงใหม่ทั้งหมด
+      dom.reconvertAllBtn.addEventListener('click', reconvertAllItems);
+
+      // ปุ่มเพิ่มรูปภาพ
+      dom.addMoreBtn.addEventListener('click', () => dom.fileInput.click());
+
+      // ปุ่มล้างรายการทั้งหมด (เปิด Modal ยืนยันแทน window.confirm)
+      dom.clearAllBtn.addEventListener('click', () => {
+        if (state.items.length === 0) return;
+        dom.confirmClearModal.classList.remove('hidden');
+      });
+
+      dom.cancelClearBtn.addEventListener('click', () => {
+        dom.confirmClearModal.classList.add('hidden');
+      });
+
+      dom.confirmClearBtn.addEventListener('click', () => {
+        dom.confirmClearModal.classList.add('hidden');
+        clearAllItems();
+      });
+
+      // ปุ่มดาวน์โหลดทั้งหมดเป็นไฟล์ ZIP
+      dom.downloadZipBtn.addEventListener('click', downloadAllAsZip);
+
+      // Event Delegation สำหรับปุ่มภายในรายการแต่ละไฟล์ (ดาวน์โหลด PNG / ลบ / ดูตัวอย่าง)
+      dom.fileListContainer.addEventListener('click', (e) => {
+        const actionBtn = e.target.closest('[data-action]');
+        if (!actionBtn) return;
+
+        const action = actionBtn.getAttribute('data-action');
+        const id = actionBtn.getAttribute('data-id');
+
+        if (action === 'download') {
+          const item = state.items.find((it) => it.id === id);
+          if (item && item.status === 'done' && item.convertedBlob) {
+            triggerBlobDownload(item.convertedBlob, item.outputName);
+          }
+        } else if (action === 'delete') {
+          removeItemById(id);
+        } else if (action === 'preview') {
+          openPreviewModal(id);
+        }
+      });
+
+      // Events ของ Preview Modal
+      dom.closePreviewModalBtn.addEventListener('click', closePreviewModal);
+      dom.togglePreviewBgBtn.addEventListener('click', cyclePreviewBackground);
+      dom.previewModalDownloadBtn.addEventListener('click', () => {
+        if (!state.previewItemId) return;
+        const item = state.items.find((it) => it.id === state.previewItemId);
+        if (item && item.status === 'done' && item.convertedBlob) {
+          triggerBlobDownload(item.convertedBlob, item.outputName);
+        }
+      });
+
+      dom.previewModal.addEventListener('click', (e) => {
+        if (e.target === dom.previewModal) closePreviewModal();
+      });
+
+      dom.confirmClearModal.addEventListener('click', (e) => {
+        if (e.target === dom.confirmClearModal) dom.confirmClearModal.classList.add('hidden');
+      });
+
+      // กดปุ่ม Escape เพื่อปิด Modal ที่เปิดอยู่
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (!dom.previewModal.classList.contains('hidden')) closePreviewModal();
+          if (!dom.confirmClearModal.classList.contains('hidden')) dom.confirmClearModal.classList.add('hidden');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
